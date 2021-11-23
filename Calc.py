@@ -1,17 +1,39 @@
 import copy
 import time
 import numpy as np
+import matplotlib.pyplot as plt
+import random
 
 
 def get_length(distance_matrix, index1, index2):
+    """
+
+    :param distance_matrix:
+        matrix containing all distances between given points
+    :param index1:
+        point 1
+    :param index2:
+        point 2
+    :return:
+        distance between 2 points
+    """
     return distance_matrix[index1, index2]
 
 
 def sequence(indices, distance_matrix):
+    """
+
+    :param indices:
+        list of indicies - all points in visiting order
+    :param distance_matrix:
+        a matrix containing distances between points
+    :return:
+        overall distance for route given in indices
+    """
     overall_distance = 0
     for i in range(0, len(indices) - 1):
         overall_distance += get_length(distance_matrix, indices[i], indices[i + 1])
-    overall_distance+= get_length(distance_matrix, indices[0], indices[len(indices) - 1])
+    overall_distance += get_length(distance_matrix, indices[0], indices[len(indices) - 1])
     return overall_distance
 
 
@@ -73,6 +95,8 @@ def randomswap_m3(m2):
 def calculate_moves2(m, tl, zeros, distance_matrix):
     """
     This is used to calculate every possible swap of 2 rows, and find the best swap
+    :param distance_matrix:
+        a matrix of distances between points
     :param zeros:
         bool, used to specify allowing zero time change swaps
     :param m:
@@ -141,6 +165,7 @@ def update_tabu_list(tl):
                 tl[i][j] -= 1
     return tl
 
+
 def initrandomswaps_m(m, n):
     """
     Initiates population size n using initrandomswap on m
@@ -152,16 +177,30 @@ def initrandomswaps_m(m, n):
         population.append(copy.copy(best_solution))
     return population
 
+
 def select_best_child(solutions, distance_matrix):
     """
     Select best matrix from current population
     """
-    mini = sequence(solutions[0],distance_matrix)
+    mini = sequence(solutions[0], distance_matrix)
     mat = solutions[0]
     for solution in solutions:
         if sequence(solution, distance_matrix) < mini:
             mat = solution
     return mat
+
+
+def select_best_solutions2(population, n):
+    """
+    :param population:
+        list of solutions
+    :param n:
+        number of solutions in list
+    :return:
+        n/2 randomly selected pairs of solutions from population
+    """
+    return [random.choices(population, k=2) for i in range(0, int(n / 2))]
+
 
 def select_best_solutions(population, n, distance_matrix):
     """
@@ -175,51 +214,8 @@ def select_best_solutions(population, n, distance_matrix):
         n/2 element list of 2 np matrixes,
         meaning returns n/2 pairs ready to be crossed
     """
-    population_with_distances = []
-    suma = 0
-    # calculate times for everyone in population
-    ind = 0
-    for parent in population:
-        s = sequence(parent, distance_matrix)
-        population_with_distances.append([ind, s])
-        suma += s
-        ind += 1
-    # divide time by sum of all times to get the probablilities
-    for parent_and_time in population_with_distances:
-        parent_and_time[1] = parent_and_time[1] / suma
-    # sort population and times by probablilities
-    sorted(population_with_distances, key=lambda x: x[1])
-    poprzedni = 0
-    # change probabilities to distribution
-    for parent_and_time in population_with_distances:
-        temp = parent_and_time[1]
-        parent_and_time[1] = poprzedni + parent_and_time[1]
-        poprzedni += temp
-    # reverse distribution (the lower the higher change to pick)
-    d = []
-    for parent_and_time in population_with_distances:
-        d.append(parent_and_time[1])
-    d.reverse()
-    # replace distribution with the reversed one
-    reversed_parent_and_time = []
-    for i in range(0, len(d)):
-        reversed_parent_and_time.append([population_with_distances[i][0], d[i]])
-    reversed_parent_and_time.reverse()
-    # select pairs from population according to population size and distribution intervals
-    selected_population = []
-    for i in range(1, int(n / 2) + 1):
-        parents = []
-        while len(parents) != 2:
-            random = np.random.random()
-            for parent_and_time in reversed_parent_and_time:
-                if parent_and_time[1] > random and parent_and_time[0] not in parents:
-                    parents.append(parent_and_time[0])
-                    break
-            selected_population.append(parents)
-    all_pairs = []
-    for p in selected_population:
-        all_pairs.append([population[p[0]], population[p[1]]])
-    return all_pairs
+    do = [1 / sequence(x, distance_matrix) for x in population]
+    return [random.choices(population, weights=do, k=2) for i in range(0, int(n / 2))]
 
 
 def mutate_children(solutions, rswaps):
@@ -231,6 +227,7 @@ def mutate_children(solutions, rswaps):
         for i in range(0, rswaps):
             solution = randomswap_m(solution)
     return solutions
+
 
 def cross_indexes(tasks1, tasks2, div1, div2):
     """
@@ -378,7 +375,39 @@ def calc_nearest(row, cities):
     mini_index = -1
     mini = 99999
     for i in range(0, len(row)):
-        if row[i]<mini and i not in cities:
-            mini_index=i
-            mini=row[i]
+        if row[i] < mini and i not in cities:
+            mini_index = i
+            mini = row[i]
     return mini_index
+
+
+def viz(solution, points_file, knn=False):
+    if knn:
+        solution = [x + 1 for x in solution]
+    print(solution)
+    points = np.genfromtxt(points_file, delimiter=",")
+    plt.scatter(points[:, 1], points[:, 2])
+    for i, label in enumerate(points[:, 0]):
+        plt.annotate(int(label), (points[i, 1], points[i, 2]))
+    coordinates = []
+    for index in solution:
+        coords_s = [0, 0]
+        for i in range(0, len(points)):
+            if points[i, 0] == index:
+                coords_s = [points[i, 1], points[i, 2]]
+                break
+        coordinates.append(coords_s)
+    for i in range(0, len(coordinates) - 1):
+        plt.annotate("",
+                     xy=coordinates[i + 1], xycoords='data',
+                     xytext=coordinates[i], textcoords='data',
+                     arrowprops=dict(arrowstyle="->",
+                                     connectionstyle="arc3"))
+    plt.annotate("",
+                 xy=coordinates[len(coordinates) - 1], xycoords='data',
+                 xytext=coordinates[0], textcoords='data',
+                 arrowprops=dict(arrowstyle="->",
+                                 connectionstyle="arc3"))
+    plt.axis('off')
+    plt.show()
+    plt.clf()

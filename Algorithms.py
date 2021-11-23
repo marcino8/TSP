@@ -1,10 +1,16 @@
 import Calc as c
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 
-def sa(start_T, red_T, geom, inside_iter, no_change_number, file_to_read, file_to_save):
+def sa(start_T, red_T, geom, inside_iter, no_change_number, neigh, file_to_read):
     """
+    :param neigh:
+        type of searched neighbourhood:
+            1 - swaps of 2 points
+            2 - reversing order of points between 2 points
+            3 - multiswaping a few points by center point
     :param init_swap:
         bool, if true, swaps loaded from file solution
     :param start_T:
@@ -25,26 +31,38 @@ def sa(start_T, red_T, geom, inside_iter, no_change_number, file_to_read, file_t
     :return:
         Saves matrix calculated by SA algorithm
     """
+    file_to_save = file_to_read.replace(".csv", "_startT_") + str(start_T) + "_red_" + str(red_T) \
+                   + "_geom_" + str(geom) + "_iter_" + str(inside_iter) + "_nochange_" + str(
+        no_change_number) + "_neigh_" + str(neigh)
     m = np.genfromtxt(file_to_read, delimiter=',')
     solution = np.arange(1, len(m))
     np.random.shuffle(solution)
     t = start_T
+    distances = []
     if geom:
         stop = 0.01
     else:
         stop = 0.00001
     while t > stop:
         start = time.time()
+        distances.append(c.sequence(solution, m))
         print("TEMPERATURE", t, c.sequence(solution, m))
         no_change = 0
         for i in range(1, inside_iter):
-            rnd = np.random.randint(1, 4)
-            if rnd == 1:
+            if neigh == 1:
                 s2 = c.randomswap_m(solution)
-            elif rnd == 2:
+            elif neigh == 2:
                 s2 = c.randomswap_m2(solution)
-            else:
+            elif neigh == 3:
                 s2 = c.randomswap_m3(solution)
+            else:
+                rnd = np.random.randint(1, 4)
+                if rnd == 1:
+                    s2 = c.randomswap_m(solution)
+                elif rnd == 2:
+                    s2 = c.randomswap_m2(solution)
+                else:
+                    s2 = c.randomswap_m3(solution)
             t1 = c.sequence(solution, m)
             t2 = c.sequence(s2, m)
             delta_time = t2 - t1
@@ -63,10 +81,11 @@ def sa(start_T, red_T, geom, inside_iter, no_change_number, file_to_read, file_t
             t = t / (1 + red_T * t)
         else:
             t = t * red_T
-
+    file_to_save = file_to_save + "_wynik_" + str(int(c.sequence(solution, m))) + ".csv"
     np.savetxt(file_to_save, solution, delimiter=",")
     print("FINAL FOR ", t, "T START ", inside_iter, "INSIDE ITERATIONS ", red_T, "REDUCTION ", "SAVED TO ",
           file_to_save)
+    return distances
 
 
 def ts(s, inside_iter, file_to_read, file_to_save, allow_zeros=False):
@@ -92,34 +111,33 @@ def ts(s, inside_iter, file_to_read, file_to_save, allow_zeros=False):
     tabu_list = np.zeros((len(m), len(m)))
     solution = np.arange(1, len(m))
     np.random.shuffle(solution)
-    # no_change = 0
+    best_solution = solution
+    dist = []
     for i in range(1, inside_iter):
         start = time.time()
         print(i)
         tm = c.sequence(solution, m)
+        dist.append(tm)
         print(tm)
         move = c.calculate_moves2(solution, tabu_list, allow_zeros, m)
         print(move)
         solution = c.swap(solution, move[0], move[1])
-        # if move[2] == 0:
-        #     no_change += 1
-        # else:
-        #     no_change = 0
-        # if no_change > 5:
-        #     id1 = np.random.randint(0, len(solution))
-        #     id2 = np.random.randint(0, len(solution))
-        #     while id1 == id2:
-        #         id2 = np.random.randint(0, len(solution))
-        #     tabu_list[id1, id2] = s
-        #     solution = Calc.swap(solution, id1, id2)
         tabu_list = c.update_tabu_list(tabu_list)
         tabu_list[move[0], move[1]] = s
+        tm = c.sequence(best_solution, m)
+        tm2 = c.sequence(solution, m)
+        if tm - tm2 > 0:
+            best_solution = solution
         print("time per inside iter :", time.time() - start)
-    np.savetxt(file_to_save, solution, delimiter=",")
+    dist.append(c.sequence(solution, m))
+    file_to_save = file_to_save.replace(".csv", "_wynik_") + str(c.sequence(best_solution, m)) + ".csv"
+    np.savetxt(file_to_save, best_solution, delimiter=",")
+    print(c.sequence(best_solution, m))
     print("FINAL FOR ", s, "BLOCKS ", inside_iter, "INSIDE ITERATIONS ", "SAVED TO ", file_to_save)
+    return dist
 
 
-def ihc(outside_iter, indide_iter, no_change_number, file_to_read, file_to_save):
+def ihc(outside_iter, indide_iter, no_change_number, neigh, file_to_read):
     """
     :param init_swap:
         bool, if true, swaps loaded from file solution
@@ -138,28 +156,39 @@ def ihc(outside_iter, indide_iter, no_change_number, file_to_read, file_to_save)
     :return:
          Saves matrix calculated by IHC algorithm
     """
+    file_to_save = file_to_read.replace(".csv", "_outside_") + str(outside_iter) + "_inside_" + str(indide_iter) \
+                   + "_nochange_" + str(no_change_number) + "_neigh_" + str(neigh)
     m = np.genfromtxt(file_to_read, delimiter=',')
     best_solution = np.arange(1, len(m))
     np.random.shuffle(best_solution)
+    distances = []
     for j in range(0, outside_iter):
         start = time.time()
+        distances.append(c.sequence(best_solution, m))
         print("OUTSIDE ITER:", j)
         solution = np.arange(1, len(m))
         np.random.shuffle(solution)
         no_change = 0
         for i in range(0, indide_iter):
-            rnd = np.random.randint(1, 4)
-            if rnd == 1:
-                m2 = c.randomswap_m(solution)
-            elif rnd == 2:
-                m2 = c.randomswap_m2(solution)
+            if neigh == 1:
+                s2 = c.randomswap_m(solution)
+            elif neigh == 2:
+                s2 = c.randomswap_m2(solution)
+            elif neigh == 3:
+                s2 = c.randomswap_m3(solution)
             else:
-                m2 = c.randomswap_m3(solution)
+                rnd = np.random.randint(1, 4)
+                if rnd == 1:
+                    s2 = c.randomswap_m(solution)
+                elif rnd == 2:
+                    s2 = c.randomswap_m2(solution)
+                else:
+                    s2 = c.randomswap_m3(solution)
             t1 = c.sequence(solution, m)
-            t2 = c.sequence(m2, m)
+            t2 = c.sequence(s2, m)
             delta_time = t2 - t1
             if delta_time < 0:
-                solution = m2
+                solution = s2
                 no_change = 0
             else:
                 no_change += 1
@@ -171,19 +200,29 @@ def ihc(outside_iter, indide_iter, no_change_number, file_to_read, file_to_save)
             best_solution = solution
         print(c.sequence(best_solution, m))
         print("time per outside iter :", time.time() - start)
+    file_to_save = file_to_save + "_wynik_" + str(int(c.sequence(best_solution, m))) + ".csv"
     np.savetxt(file_to_save, best_solution, delimiter=",")
     print("FINAL FOR ", indide_iter, "INSIDE ITER ", outside_iter, "OUTSIDE ITER ", "WITH NO CHANGE ", no_change_number,
           "SAVED TO ", file_to_save)
+    return distances
 
 
-def ga(population_size, iterations, mutations, div1, div2, cross, file_to_read, file_to_save):
+def ga(population_size, iterations, mutations, div1, div2, cross, select, file_to_read):
+    file_to_save = file_to_read.replace(".csv",
+                                        "") + f"_GA_pop_{population_size}_epoch_{iterations}_mutate_{mutations}_cross_{cross}_crosspoints_{div1}_{div2}"
     distance_matrix = np.genfromtxt(file_to_read, delimiter=',')
     population = c.initrandomswaps_m(distance_matrix, population_size)
     best = c.select_best_child(population, distance_matrix)
     print(best, c.sequence(best, distance_matrix))
+    distances = []
+    averages = []
     epoch = 1
-    while epoch <= iterations:
-        parents = c.select_best_solutions(population, population_size, distance_matrix)
+    while epoch < iterations:
+        if select == 0:
+            parents = c.select_best_solutions2(population, population_size)
+        else:
+            parents = c.select_best_solutions(population, population_size, distance_matrix)
+
         children = c.produce_children1(parents, div1, div2, cross)
         population = c.mutate_children(children, mutations)
         pretender = c.select_best_child(population, distance_matrix)
@@ -197,7 +236,19 @@ def ga(population_size, iterations, mutations, div1, div2, cross, file_to_read, 
         avg /= len(population)
         epoch += 1
         print(best_time, avg, epoch)
+        distances.append(best_time)
+        averages.append(avg)
+    file_to_save = file_to_save + "_wynik_" + str(c.sequence(best, distance_matrix)) + ".csv"
     np.savetxt(file_to_save, best, delimiter=",")
+    plt.plot(np.linspace(1, len(distances), len(distances)), distances, label="best distance")
+    plt.plot(np.linspace(1, len(averages), len(averages)), averages, label="average")
+    title = f"GA {iterations} EPOCH, {population_size} POPULATION, MUTATIONS {mutations}, CROSSING {cross}"
+    plt.xlabel("Epoch")
+    plt.ylabel("Distance")
+    plt.title(title)
+    plt.legend()
+    plt.savefig(file_to_save.replace(".csv",".jpeg"))
+    plt.clf()
 
 
 def knn(start_city, file_to_read):
@@ -217,3 +268,4 @@ def knn(start_city, file_to_read):
         print(cities)
     print(len(cities))
     print(c.sequence(cities, np.genfromtxt(file_to_read, delimiter=',')))
+    return cities
